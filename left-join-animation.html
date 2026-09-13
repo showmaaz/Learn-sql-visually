@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SQL LEFT JOIN — Visualized</title>
+<style>
+  :root{
+    --bg: #0B1015; --panel: #141B23; --panel-border: #232E3A;
+    --text: #DCE4EC; --text-muted: #66748A;
+    --customers: #5EEAD4; --customers-dim: #1E3B38;
+    --orders: #FBBF77; --orders-dim: #3B2F1E;
+    --match: #8B9EFF; --null-color: #4A5568;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    --font-sans: -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-sans);padding:32px 20px 60px;min-height:100vh;}
+  .wrap{max-width:820px;margin:0 auto;}
+  .back{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);text-decoration:none;display:inline-block;margin-bottom:18px;}
+  .back:hover{color:var(--match);}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px;letter-spacing:-0.01em;}
+  .sub{color:var(--text-muted);font-size:14px;margin:0 0 24px;}
+  .query-bar{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;padding:14px 16px;margin-bottom:28px;}
+  .query-bar code{font-family:var(--font-mono);font-size:13px;flex:1;line-height:1.6;}
+  .query-bar code .kw{color:var(--match);}
+  .query-bar code .t1{color:var(--customers);}
+  .query-bar code .t2{color:var(--orders);}
+  button{font-family:var(--font-sans);font-size:13px;font-weight:600;background:var(--match);color:#0B1015;border:none;border-radius:6px;padding:9px 16px;cursor:pointer;white-space:nowrap;transition:opacity .15s;}
+  button:hover{opacity:.85;} button:disabled{opacity:.4;cursor:default;}
+  .tables-area{position:relative;display:flex;justify-content:space-between;gap:12%;margin-bottom:8px;}
+  svg.connectors{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;}
+  svg.connectors path{fill:none;stroke:var(--match);stroke-width:2;opacity:0;transition:opacity .25s;}
+  svg.connectors path.on{opacity:.9;}
+  .table-block{width:44%;}
+  .table-label{font-family:var(--font-mono);font-size:12px;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .table-block table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;overflow:hidden;}
+  th,td{text-align:left;padding:9px 12px;font-size:13px;font-family:var(--font-mono);}
+  th{color:var(--text-muted);font-weight:500;font-size:11px;text-transform:lowercase;border-bottom:1px solid var(--panel-border);}
+  tbody tr{border-bottom:1px solid var(--panel-border);transition:background .2s, opacity .2s;}
+  tbody tr:last-child{border-bottom:none;}
+  tbody tr.active-c{background:var(--customers-dim);}
+  tbody tr.active-o{background:var(--orders-dim);}
+  tbody tr.dim{opacity:.35;}
+  .result-section{margin-top:32px;}
+  .result-label{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-bottom:8px;}
+  .result-table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;overflow:hidden;min-height:48px;}
+  .result-table th, .result-table td{padding:9px 12px;font-size:13px;font-family:var(--font-mono);text-align:left;}
+  .result-table th{color:var(--text-muted);font-weight:500;font-size:11px;border-bottom:1px solid var(--panel-border);}
+  .result-table tbody tr{border-bottom:1px solid var(--panel-border);opacity:0;transform:translateY(-6px);animation:rowIn .35s ease forwards;}
+  .result-table tbody tr:last-child{border-bottom:none;}
+  @keyframes rowIn{to{opacity:1;transform:translateY(0);}}
+  .result-table td.name{color:var(--customers);}
+  .result-table td.product{color:var(--orders);}
+  .result-table td.nullval{color:var(--null-color);font-style:italic;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← back to concepts</a>
+  <h1>LEFT JOIN — keep everything on the left</h1>
+  <p class="sub">Every customer appears in the result, even ones with no orders.</p>
+
+  <div class="query-bar">
+    <code><span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="t1">customers</span> <span class="kw">LEFT JOIN</span> <span class="t2">orders</span> <span class="kw">ON</span> <span class="t1">customers.id</span> = <span class="t2">orders.customer_id</span></code>
+    <button id="runBtn">Run ▸</button>
+  </div>
+
+  <div class="tables-area" id="tablesArea">
+    <svg class="connectors" id="connSvg"></svg>
+    <div class="table-block">
+      <div class="table-label"><span class="dot" style="background:var(--customers)"></span>customers</div>
+      <table><thead><tr><th>id</th><th>name</th></tr></thead><tbody id="custBody"></tbody></table>
+    </div>
+    <div class="table-block">
+      <div class="table-label"><span class="dot" style="background:var(--orders)"></span>orders</div>
+      <table><thead><tr><th>id</th><th>customer_id</th><th>product</th></tr></thead><tbody id="orderBody"></tbody></table>
+    </div>
+  </div>
+
+  <div class="result-section">
+    <div class="result-label">result</div>
+    <table class="result-table">
+      <thead><tr><th>name</th><th>product</th></tr></thead>
+      <tbody id="resultBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const customers = [
+  {id:1, name:'Alice'}, {id:2, name:'Bob'}, {id:3, name:'Carol'}, {id:4, name:'David'},
+];
+const orders = [
+  {id:101, customer_id:1, product:'Laptop'},
+  {id:102, customer_id:2, product:'Phone'},
+  {id:103, customer_id:1, product:'Mouse'},
+  {id:104, customer_id:3, product:'Tablet'},
+];
+
+const custBody = document.getElementById('custBody');
+const orderBody = document.getElementById('orderBody');
+const resultBody = document.getElementById('resultBody');
+const connSvg = document.getElementById('connSvg');
+const tablesArea = document.getElementById('tablesArea');
+const runBtn = document.getElementById('runBtn');
+
+function renderStaticTables(){
+  custBody.innerHTML = customers.map(c => `<tr data-id="c${c.id}"><td>${c.id}</td><td>${c.name}</td></tr>`).join('');
+  orderBody.innerHTML = orders.map(o => `<tr data-id="o${o.id}"><td>${o.id}</td><td>${o.customer_id}</td><td>${o.product}</td></tr>`).join('');
+}
+renderStaticTables();
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+function clearHighlights(){
+  document.querySelectorAll('#custBody tr, #orderBody tr').forEach(tr=>{ tr.classList.remove('active-c','active-o','dim'); });
+}
+function drawConnector(fromEl, toEl){
+  const areaBox = tablesArea.getBoundingClientRect();
+  const a = fromEl.getBoundingClientRect(); const b = toEl.getBoundingClientRect();
+  const x1 = a.right - areaBox.left, y1 = a.top - areaBox.top + a.height/2;
+  const x2 = b.left - areaBox.left, y2 = b.top - areaBox.top + b.height/2;
+  const midX = (x1+x2)/2;
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.setAttribute('d', `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`);
+  connSvg.appendChild(path);
+  requestAnimationFrame(()=>path.classList.add('on'));
+  return path;
+}
+
+async function runLeftJoin(){
+  runBtn.disabled = true;
+  resultBody.innerHTML = ''; connSvg.innerHTML = ''; clearHighlights();
+
+  for(const c of customers){
+    const cRow = custBody.querySelector(`[data-id="c${c.id}"]`);
+    cRow.classList.add('active-c');
+    await sleep(280);
+
+    const matches = orders.filter(o => o.customer_id === c.id);
+
+    if(matches.length === 0){
+      await sleep(200);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="name">${c.name}</td><td class="nullval">NULL</td>`;
+      resultBody.appendChild(tr);
+      await sleep(280);
+      cRow.classList.remove('active-c'); cRow.classList.add('dim');
+      continue;
+    }
+
+    for(const o of matches){
+      const oRow = orderBody.querySelector(`[data-id="o${o.id}"]`);
+      oRow.classList.add('active-o');
+      const line = drawConnector(cRow, oRow);
+      await sleep(320);
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="name">${c.name}</td><td class="product">${o.product}</td>`;
+      resultBody.appendChild(tr);
+      await sleep(280);
+
+      oRow.classList.remove('active-o'); line.classList.remove('on');
+      await sleep(150);
+    }
+    cRow.classList.remove('active-c'); cRow.classList.add('dim');
+  }
+  await sleep(150); clearHighlights(); runBtn.disabled = false;
+}
+runBtn.addEventListener('click', runLeftJoin);
+</script>
+</body>
+</html>
