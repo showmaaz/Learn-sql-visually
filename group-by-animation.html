@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SQL GROUP BY — Visualized</title>
+<style>
+  :root{
+    --bg: #0B1015; --panel: #141B23; --panel-border: #232E3A;
+    --text: #DCE4EC; --text-muted: #66748A;
+    --orders: #FBBF77; --orders-dim: #3B2F1E;
+    --match: #8B9EFF;
+    --g1: #5EEAD4; --g1-dim: #1E3B38;
+    --g2: #F0A868; --g2-dim: #3B2F1E;
+    --g3: #C4B5FD; --g3-dim: #2E2A4A;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    --font-sans: -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-sans);padding:32px 20px 60px;min-height:100vh;}
+  .wrap{max-width:720px;margin:0 auto;}
+  .back{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);text-decoration:none;display:inline-block;margin-bottom:18px;}
+  .back:hover{color:var(--match);}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px;letter-spacing:-0.01em;}
+  .sub{color:var(--text-muted);font-size:14px;margin:0 0 24px;}
+  .query-bar{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;padding:14px 16px;margin-bottom:28px;}
+  .query-bar code{font-family:var(--font-mono);font-size:13px;flex:1;line-height:1.6;}
+  .query-bar code .kw{color:var(--match);}
+  .query-bar code .t1{color:var(--orders);}
+  button{font-family:var(--font-sans);font-size:13px;font-weight:600;background:var(--match);color:#0B1015;border:none;border-radius:6px;padding:9px 16px;cursor:pointer;white-space:nowrap;transition:opacity .15s;}
+  button:hover{opacity:.85;} button:disabled{opacity:.4;cursor:default;}
+  .table-label{font-family:var(--font-mono);font-size:12px;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--orders);}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;overflow:hidden;}
+  th,td{text-align:left;padding:9px 12px;font-size:13px;font-family:var(--font-mono);}
+  th{color:var(--text-muted);font-weight:500;font-size:11px;text-transform:lowercase;border-bottom:1px solid var(--panel-border);}
+  tbody tr{border-bottom:1px solid var(--panel-border);transition:background .2s, opacity .2s;}
+  tbody tr:last-child{border-bottom:none;}
+  tbody tr.g1{background:var(--g1-dim);} tbody tr.g2{background:var(--g2-dim);} tbody tr.g3{background:var(--g3-dim);}
+  tbody tr.dim{opacity:.5;}
+
+  .buckets{display:flex;gap:12px;margin:20px 0;}
+  .bucket{flex:1;background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;padding:12px 14px;text-align:center;}
+  .bucket .label{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-bottom:6px;}
+  .bucket .count{font-family:var(--font-mono);font-size:24px;font-weight:600;transition:transform .15s;}
+  .bucket.g1 .count{color:var(--g1);} .bucket.g2 .count{color:var(--g2);} .bucket.g3 .count{color:var(--g3);}
+  .bucket.pulse .count{transform:scale(1.25);}
+
+  .result-section{margin-top:28px;}
+  .result-label{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-bottom:8px;}
+  .result-table tbody tr{border-bottom:1px solid var(--panel-border);opacity:0;transform:translateY(-6px);animation:rowIn .35s ease forwards;}
+  .result-table tbody tr:last-child{border-bottom:none;}
+  @keyframes rowIn{to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← back to concepts</a>
+  <h1>GROUP BY — collapsing rows into summaries</h1>
+  <p class="sub">Rows sort into buckets by customer, then each bucket collapses into one summary row.</p>
+
+  <div class="query-bar">
+    <code><span class="kw">SELECT</span> customer_id, <span class="kw">COUNT</span>(*) <span class="kw">FROM</span> <span class="t1">orders</span> <span class="kw">GROUP BY</span> customer_id</code>
+    <button id="runBtn">Run ▸</button>
+  </div>
+
+  <div class="table-label"><span class="dot"></span>orders</div>
+  <table>
+    <thead><tr><th>id</th><th>customer_id</th><th>product</th></tr></thead>
+    <tbody id="orderBody"></tbody>
+  </table>
+
+  <div class="buckets">
+    <div class="bucket g1" id="bucket1"><div class="label">customer_id 1</div><div class="count">0</div></div>
+    <div class="bucket g2" id="bucket2"><div class="label">customer_id 2</div><div class="count">0</div></div>
+    <div class="bucket g3" id="bucket3"><div class="label">customer_id 3</div><div class="count">0</div></div>
+  </div>
+
+  <div class="result-section">
+    <div class="result-label">result</div>
+    <table class="result-table">
+      <thead><tr><th>customer_id</th><th>count</th></tr></thead>
+      <tbody id="resultBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const orders = [
+  {id:101, customer_id:1, product:'Laptop'},
+  {id:102, customer_id:2, product:'Phone'},
+  {id:103, customer_id:1, product:'Mouse'},
+  {id:104, customer_id:3, product:'Tablet'},
+  {id:105, customer_id:2, product:'Charger'},
+  {id:106, customer_id:1, product:'Monitor'},
+];
+const groupClass = {1:'g1', 2:'g2', 3:'g3'};
+const bucketEl = {1: document.getElementById('bucket1'), 2: document.getElementById('bucket2'), 3: document.getElementById('bucket3')};
+
+const orderBody = document.getElementById('orderBody');
+const resultBody = document.getElementById('resultBody');
+const runBtn = document.getElementById('runBtn');
+
+function renderStaticTable(){
+  orderBody.innerHTML = orders.map(o =>
+    `<tr data-id="o${o.id}"><td>${o.id}</td><td>${o.customer_id}</td><td>${o.product}</td></tr>`
+  ).join('');
+}
+renderStaticTable();
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+async function runGroupBy(){
+  runBtn.disabled = true;
+  resultBody.innerHTML = '';
+  document.querySelectorAll('#orderBody tr').forEach(tr => tr.className='');
+  const counts = {1:0, 2:0, 3:0};
+  Object.values(bucketEl).forEach(b => { b.querySelector('.count').textContent = '0'; b.classList.remove('pulse'); });
+
+  for(const o of orders){
+    const row = orderBody.querySelector(`[data-id="o${o.id}"]`);
+    const gClass = groupClass[o.customer_id];
+    row.classList.add(gClass);
+    await sleep(260);
+
+    counts[o.customer_id]++;
+    const b = bucketEl[o.customer_id];
+    b.querySelector('.count').textContent = counts[o.customer_id];
+    b.classList.add('pulse');
+    await sleep(200);
+    b.classList.remove('pulse');
+
+    row.classList.add('dim');
+    await sleep(180);
+  }
+
+  await sleep(300);
+  for(const cid of [1,2,3]){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${cid}</td><td>${counts[cid]}</td>`;
+    resultBody.appendChild(tr);
+    await sleep(220);
+  }
+
+  runBtn.disabled = false;
+}
+runBtn.addEventListener('click', runGroupBy);
+</script>
+</body>
+</html>
