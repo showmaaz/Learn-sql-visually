@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SQL WHERE — Visualized</title>
+<style>
+  :root{
+    --bg: #0B1015; --panel: #141B23; --panel-border: #232E3A;
+    --text: #DCE4EC; --text-muted: #66748A;
+    --orders: #FBBF77; --orders-dim: #3B2F1E;
+    --match: #8B9EFF; --keep: #6EE7B7; --keep-dim: #163B2E;
+    --reject: #F87171; --reject-dim: #3B1E1E;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    --font-sans: -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-sans);padding:32px 20px 60px;min-height:100vh;}
+  .wrap{max-width:640px;margin:0 auto;}
+  .back{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);text-decoration:none;display:inline-block;margin-bottom:18px;}
+  .back:hover{color:var(--match);}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px;letter-spacing:-0.01em;}
+  .sub{color:var(--text-muted);font-size:14px;margin:0 0 24px;}
+  .query-bar{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;padding:14px 16px;margin-bottom:28px;}
+  .query-bar code{font-family:var(--font-mono);font-size:13px;flex:1;line-height:1.6;}
+  .query-bar code .kw{color:var(--match);}
+  .query-bar code .t1{color:var(--orders);}
+  .query-bar code .cond{color:var(--keep);}
+  button{font-family:var(--font-sans);font-size:13px;font-weight:600;background:var(--match);color:#0B1015;border:none;border-radius:6px;padding:9px 16px;cursor:pointer;white-space:nowrap;transition:opacity .15s;}
+  button:hover{opacity:.85;} button:disabled{opacity:.4;cursor:default;}
+  .table-label{font-family:var(--font-mono);font-size:12px;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--orders);}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;overflow:hidden;}
+  th,td{text-align:left;padding:9px 12px;font-size:13px;font-family:var(--font-mono);}
+  th{color:var(--text-muted);font-weight:500;font-size:11px;text-transform:lowercase;border-bottom:1px solid var(--panel-border);}
+  tbody tr{border-bottom:1px solid var(--panel-border);transition:background .2s, opacity .2s;}
+  tbody tr:last-child{border-bottom:none;}
+  tbody tr.checking{background:var(--orders-dim);}
+  tbody tr.kept{background:var(--keep-dim);}
+  tbody tr.rejected{opacity:.3;text-decoration:line-through;}
+  .verdict{font-family:var(--font-mono);font-size:11px;padding:2px 8px;border-radius:4px;display:inline-block;opacity:0;transition:opacity .2s;}
+  .verdict.show{opacity:1;}
+  .verdict.keep{color:var(--keep);background:rgba(110,231,183,.12);}
+  .verdict.reject{color:var(--reject);background:rgba(248,113,113,.12);}
+  .result-section{margin-top:32px;}
+  .result-label{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-bottom:8px;}
+  .result-table tbody tr{border-bottom:1px solid var(--panel-border);opacity:0;transform:translateY(-6px);animation:rowIn .35s ease forwards;}
+  .result-table tbody tr:last-child{border-bottom:none;}
+  @keyframes rowIn{to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← back to concepts</a>
+  <h1>WHERE — filtering row by row</h1>
+  <p class="sub">Each row gets checked against the condition, one at a time.</p>
+
+  <div class="query-bar">
+    <code><span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="t1">orders</span> <span class="kw">WHERE</span> <span class="cond">customer_id = 1</span></code>
+    <button id="runBtn">Run ▸</button>
+  </div>
+
+  <div class="table-label"><span class="dot"></span>orders <span id="verdictSlot" class="verdict"></span></div>
+  <table>
+    <thead><tr><th>id</th><th>customer_id</th><th>product</th></tr></thead>
+    <tbody id="orderBody"></tbody>
+  </table>
+
+  <div class="result-section">
+    <div class="result-label">result</div>
+    <table class="result-table">
+      <thead><tr><th>id</th><th>customer_id</th><th>product</th></tr></thead>
+      <tbody id="resultBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const orders = [
+  {id:101, customer_id:1, product:'Laptop'},
+  {id:102, customer_id:2, product:'Phone'},
+  {id:103, customer_id:1, product:'Mouse'},
+  {id:104, customer_id:3, product:'Tablet'},
+];
+
+const orderBody = document.getElementById('orderBody');
+const resultBody = document.getElementById('resultBody');
+const runBtn = document.getElementById('runBtn');
+const verdictSlot = document.getElementById('verdictSlot');
+
+function renderStaticTable(){
+  orderBody.innerHTML = orders.map(o =>
+    `<tr data-id="o${o.id}"><td>${o.id}</td><td>${o.customer_id}</td><td>${o.product}</td></tr>`
+  ).join('');
+}
+renderStaticTable();
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+async function runWhere(){
+  runBtn.disabled = true;
+  resultBody.innerHTML = '';
+  document.querySelectorAll('#orderBody tr').forEach(tr => tr.className='');
+  verdictSlot.className = 'verdict';
+
+  for(const o of orders){
+    const row = orderBody.querySelector(`[data-id="o${o.id}"]`);
+    row.classList.add('checking');
+    await sleep(260);
+
+    const passes = o.customer_id === 1;
+
+    verdictSlot.textContent = passes ? 'match ✓' : 'no match ✕';
+    verdictSlot.className = 'verdict show ' + (passes ? 'keep' : 'reject');
+    await sleep(320);
+
+    row.classList.remove('checking');
+    if(passes){
+      row.classList.add('kept');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${o.id}</td><td>${o.customer_id}</td><td>${o.product}</td>`;
+      resultBody.appendChild(tr);
+    } else {
+      row.classList.add('rejected');
+    }
+    verdictSlot.classList.remove('show');
+    await sleep(200);
+  }
+  runBtn.disabled = false;
+}
+runBtn.addEventListener('click', runWhere);
+</script>
+</body>
+</html>
