@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learn SQL Visually</title>
+<style>
+  :root{
+    --bg: #0B1015;
+    --panel: #141B23;
+    --panel-border: #232E3A;
+    --text: #DCE4EC;
+    --text-muted: #66748A;
+    --customers: #5EEAD4;
+    --orders: #FBBF77;
+    --match: #8B9EFF;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    --font-sans: -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-sans);
+    padding:48px 20px 80px;
+  }
+  .wrap{max-width:720px;margin:0 auto;}
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--match);
+    margin:0 0 12px;
+  }
+  h1{
+    font-size:32px;
+    font-weight:600;
+    letter-spacing:-0.02em;
+    margin:0 0 14px;
+    line-height:1.25;
+  }
+  p.lead{
+    color:var(--text-muted);
+    font-size:16px;
+    line-height:1.6;
+    margin:0 0 40px;
+    max-width:56ch;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  @media (max-width:560px){
+    .grid{grid-template-columns:1fr;}
+  }
+  a.card{
+    display:block;
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:10px;
+    padding:18px 18px 20px;
+    text-decoration:none;
+    color:var(--text);
+    transition:border-color .15s, transform .15s;
+  }
+  a.card:hover{
+    border-color:var(--match);
+    transform:translateY(-2px);
+  }
+  a.card.disabled{
+    opacity:.4;
+    pointer-events:none;
+  }
+  .card-title{
+    font-size:15px;
+    font-weight:600;
+    margin-bottom:6px;
+  }
+  .card-desc{
+    font-size:13px;
+    color:var(--text-muted);
+    line-height:1.5;
+  }
+  .card-tag{
+    display:inline-block;
+    font-family:var(--font-mono);
+    font-size:10px;
+    color:var(--match);
+    background:rgba(139,158,255,0.12);
+    border-radius:4px;
+    padding:2px 7px;
+    margin-top:10px;
+  }
+  .card-tag.soon{
+    color:var(--text-muted);
+    background:rgba(102,116,138,0.12);
+  }
+  footer{
+    margin-top:48px;
+    font-size:12px;
+    color:var(--text-muted);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">learn sql visually</p>
+  <h1>SQL, one animated query at a time.</h1>
+  <p class="lead">Every concept below is a real, running SQL example — watch rows match, filter, and combine instead of reading about it.</p>
+
+  <div class="grid">
+    <a class="card" href="join-animation.html">
+      <div class="card-title">JOIN</div>
+      <div class="card-desc">Watch two tables get matched row by row, live.</div>
+      <span class="card-tag">Ready</span>
+    </a>
+
+    <a class="card" href="left-join-animation.html">
+      <div class="card-title">LEFT JOIN</div>
+      <div class="card-desc">See what happens to rows with no match.</div>
+      <span class="card-tag">Ready</span>
+    </a>
+
+    <a class="card" href="where-animation.html">
+      <div class="card-title">WHERE</div>
+      <div class="card-desc">Filtering rows, visualized as elimination.</div>
+      <span class="card-tag">Ready</span>
+    </a>
+
+    <a class="card" href="group-by-animation.html">
+      <div class="card-title">GROUP BY</div>
+      <div class="card-desc">Rows collapsing into summarized groups.</div>
+      <span class="card-tag">Ready</span>
+    </a>
+
+    <a class="card" href="constraints-animation.html">
+      <div class="card-title">CONSTRAINTS</div>
+      <div class="card-desc">Watch inserts get accepted or rejected by the rules.</div>
+      <span class="card-tag">Ready</span>
+    </a>
+  </div>
+
+  <footer>More concepts added regularly.</footer>
+</div>
+</body>
+</html>
