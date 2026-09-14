@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SQL Constraints — Visualized</title>
+<style>
+  :root{
+    --bg: #0B1015; --panel: #141B23; --panel-border: #232E3A;
+    --text: #DCE4EC; --text-muted: #66748A;
+    --customers: #5EEAD4; --customers-dim: #1E3B38;
+    --match: #8B9EFF;
+    --keep: #6EE7B7; --keep-dim: #163B2E;
+    --reject: #F87171; --reject-dim: #3B1E1E;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    --font-sans: -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-sans);padding:32px 20px 60px;min-height:100vh;}
+  .wrap{max-width:680px;margin:0 auto;}
+  .back{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);text-decoration:none;display:inline-block;margin-bottom:18px;}
+  .back:hover{color:var(--match);}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px;letter-spacing:-0.01em;}
+  .sub{color:var(--text-muted);font-size:14px;margin:0 0 20px;}
+
+  .ddl{background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;padding:14px 16px;margin-bottom:20px;}
+  .ddl code{font-family:var(--font-mono);font-size:12.5px;line-height:1.7;white-space:pre;display:block;}
+  .ddl .kw{color:var(--match);}
+  .ddl .constraint{color:#FBBF77;}
+
+  .run-row{display:flex;justify-content:flex-end;margin-bottom:24px;}
+  button{font-family:var(--font-sans);font-size:13px;font-weight:600;background:var(--match);color:#0B1015;border:none;border-radius:6px;padding:9px 16px;cursor:pointer;transition:opacity .15s;}
+  button:hover{opacity:.85;} button:disabled{opacity:.4;cursor:default;}
+
+  .incoming-label{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-bottom:8px;}
+  .incoming-card{background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;padding:14px 16px;margin-bottom:10px;transition:background .25s, border-color .25s;}
+  .incoming-card .row-data{font-family:var(--font-mono);font-size:13px;margin-bottom:8px;}
+  .incoming-card .row-data span{color:var(--text-muted);}
+  .checks{display:flex;gap:8px;flex-wrap:wrap;}
+  .chip{font-family:var(--font-mono);font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--panel-border);color:var(--text-muted);transition:all .2s;}
+  .chip.checking{border-color:var(--match);color:var(--match);}
+  .chip.pass{border-color:var(--keep);color:var(--keep);background:rgba(110,231,183,.1);}
+  .chip.fail{border-color:var(--reject);color:var(--reject);background:rgba(248,113,113,.1);}
+  .verdict-line{font-family:var(--font-mono);font-size:12px;margin-top:10px;opacity:0;transition:opacity .2s;}
+  .verdict-line.show{opacity:1;}
+  .verdict-line.pass{color:var(--keep);}
+  .verdict-line.fail{color:var(--reject);}
+  .incoming-card.accepted{border-color:var(--keep);background:var(--keep-dim);}
+  .incoming-card.rejected{border-color:var(--reject);background:var(--reject-dim);}
+
+  .result-section{margin-top:28px;}
+  .result-label{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-bottom:8px;}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;overflow:hidden;}
+  th,td{text-align:left;padding:9px 12px;font-size:13px;font-family:var(--font-mono);}
+  th{color:var(--text-muted);font-weight:500;font-size:11px;border-bottom:1px solid var(--panel-border);}
+  tbody tr{border-bottom:1px solid var(--panel-border);opacity:0;transform:translateY(-6px);animation:rowIn .35s ease forwards;}
+  tbody tr:last-child{border-bottom:none;}
+  @keyframes rowIn{to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← back to concepts</a>
+  <h1>Constraints — the table's rulebook</h1>
+  <p class="sub">Every insert gets checked against the rules before it's allowed in.</p>
+
+  <div class="ddl">
+    <code><span class="kw">CREATE TABLE</span> customers (
+  id     INT <span class="constraint">PRIMARY KEY</span>,
+  name   TEXT <span class="constraint">NOT NULL</span>,
+  email  TEXT <span class="constraint">UNIQUE</span>
+);</code>
+  </div>
+
+  <div class="run-row"><button id="runBtn">Run inserts ▸</button></div>
+
+  <div class="incoming-label">attempting inserts</div>
+  <div id="cardsArea"></div>
+
+  <div class="result-section">
+    <div class="result-label">customers (accepted rows)</div>
+    <table>
+      <thead><tr><th>id</th><th>name</th><th>email</th></tr></thead>
+      <tbody id="resultBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const attempts = [
+  {id:1, name:'Alice', email:'alice@mail.com'},
+  {id:2, name:'Bob', email:'bob@mail.com'},
+  {id:2, name:'Carol', email:'carol@mail.com'},       // fails PRIMARY KEY (duplicate id)
+  {id:3, name:null, email:'dave@mail.com'},            // fails NOT NULL (name missing)
+  {id:4, name:'Eve', email:'bob@mail.com'},            // fails UNIQUE (duplicate email)
+  {id:5, name:'Frank', email:'frank@mail.com'},
+];
+
+const cardsArea = document.getElementById('cardsArea');
+const resultBody = document.getElementById('resultBody');
+const runBtn = document.getElementById('runBtn');
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+function buildCard(idx){
+  const card = document.createElement('div');
+  card.className = 'incoming-card';
+  card.id = `card${idx}`;
+  cardsArea.appendChild(card);
+  return card;
+}
+
+async function runInserts(){
+  runBtn.disabled = true;
+  cardsArea.innerHTML = '';
+  resultBody.innerHTML = '';
+  const seenIds = new Set();
+  const seenEmails = new Set();
+
+  for(let i=0; i<attempts.length; i++){
+    const row = attempts[i];
+    const card = buildCard(i);
+    const displayName = row.name === null ? '<span style="color:var(--reject)">NULL</span>' : row.name;
+    card.innerHTML = `
+      <div class="row-data">INSERT id=<span>${row.id}</span> name=<span>${row.name === null ? 'NULL' : row.name}</span> email=<span>${row.email}</span></div>
+      <div class="checks">
+        <span class="chip" data-c="pk">PRIMARY KEY</span>
+        <span class="chip" data-c="nn">NOT NULL</span>
+        <span class="chip" data-c="uq">UNIQUE</span>
+      </div>
+      <div class="verdict-line"></div>
+    `;
+    await sleep(250);
+
+    const pkChip = card.querySelector('[data-c="pk"]');
+    const nnChip = card.querySelector('[data-c="nn"]');
+    const uqChip = card.querySelector('[data-c="uq"]');
+    const verdictLine = card.querySelector('.verdict-line');
+
+    // PRIMARY KEY check
+    pkChip.classList.add('checking');
+    await sleep(280);
+    const pkOk = !seenIds.has(row.id);
+    pkChip.classList.remove('checking');
+    pkChip.classList.add(pkOk ? 'pass' : 'fail');
+
+    if(!pkOk){
+      verdictLine.textContent = `✕ rejected — id ${row.id} already exists (PRIMARY KEY violation)`;
+      verdictLine.classList.add('show','fail');
+      card.classList.add('rejected');
+      await sleep(400);
+      continue;
+    }
+
+    // NOT NULL check
+    nnChip.classList.add('checking');
+    await sleep(280);
+    const nnOk = row.name !== null;
+    nnChip.classList.remove('checking');
+    nnChip.classList.add(nnOk ? 'pass' : 'fail');
+
+    if(!nnOk){
+      verdictLine.textContent = `✕ rejected — name cannot be NULL (NOT NULL violation)`;
+      verdictLine.classList.add('show','fail');
+      card.classList.add('rejected');
+      await sleep(400);
+      continue;
+    }
+
+    // UNIQUE check
+    uqChip.classList.add('checking');
+    await sleep(280);
+    const uqOk = !seenEmails.has(row.email);
+    uqChip.classList.remove('checking');
+    uqChip.classList.add(uqOk ? 'pass' : 'fail');
+
+    if(!uqOk){
+      verdictLine.textContent = `✕ rejected — email ${row.email} already used (UNIQUE violation)`;
+      verdictLine.classList.add('show','fail');
+      card.classList.add('rejected');
+      await sleep(400);
+      continue;
+    }
+
+    // all pass
+    seenIds.add(row.id);
+    seenEmails.add(row.email);
+    verdictLine.textContent = `✓ accepted`;
+    verdictLine.classList.add('show','pass');
+    card.classList.add('accepted');
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${row.id}</td><td>${row.name}</td><td>${row.email}</td>`;
+    resultBody.appendChild(tr);
+    await sleep(400);
+  }
+
+  runBtn.disabled = false;
+}
+runBtn.addEventListener('click', runInserts);
+</script>
+</body>
+</html>
